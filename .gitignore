@@ -1,0 +1,26 @@
+# Keil MDK 编译产物
+Objects/
+Listings/
+*.build_log.htm
+build_log.txt
+*.lnp
+*.map
+*.htm
+*.lst
+*.o
+*.d
+*.crf
+*.axf
+*.hex
+*.bin
+*.elf
+*.lib
+*.lnt
+*.dep
+
+# Keil 用户界面缓存（每台电脑各自生成）
+*.uvguix.*
+*.uvgui.*
+
+# 调试器日志
+JLinkLog.txt
