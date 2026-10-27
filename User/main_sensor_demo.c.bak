@@ -1,0 +1,262 @@
+//main.c
+#include "stm32f4xx.h"
+#include "usart1.h"
+#include "delay.h"
+#include "GY86.h"
+#include "I2C.h"
+#include "pwm.h"
+#include "ppm.h"
+#include "key.h"
+uint8_t KeyNum0;
+uint8_t KeyNum1;
+GY86_Data sensor_data;
+
+int main(void)
+{
+		RCC_Configuration();
+    PWM_GPIO_Configuration();
+		TIM3_PWM_Configuration();  // 电机PWM输出
+		Delay_Init();
+		Key_Init();
+	
+			// 等待2秒，让系统稳定
+    Delay_ms(2000);
+	
+		Motor_SetPulse(2000);
+
+//   while (1) {
+//			KeyNum0 = Key_GetNum0();
+//			KeyNum1 = Key_GetNum1();
+//			if(KeyNum0 == 1){
+//				Motor_SetPulse(1000);
+//				Delay_ms(1000);
+//			}if(KeyNum1 == 1){
+//				Motor_SetPulse(2000);
+//				Delay_ms(1000);
+//			}
+//		}
+    SystemInit();
+    Delay_Init();  // 确保延时初始化
+    
+		RCC_Configuration();
+    PWM_GPIO_Configuration();
+		PPM_GPIO_Configuration();
+		TIM3_PWM_Configuration();  // 电机PWM输出
+    TIM2_PPM_Configuration();  // PPM输入捕获
+	
+		
+    // 第1步：先初始化USART6，确认通信正常
+    USART1_Init(9600);
+    USART1_SendString("=== System Start ===\r\n");
+    USART1_SendString("USART6 OK!\r\n");
+    
+    Delay_ms(100);
+    
+    // 第2步：初始化I2C
+    GY86_I2C_Init();
+    USART1_SendString("I2C Initialized\r\n");
+    
+    Delay_ms(100);
+    
+    // 第3步：逐步初始化GY-86，并检查每一步
+    USART1_SendString("Initializing GY-86...\r\n");
+    
+    // 3.1 初始化MPU6050
+    USART1_SendString("  MPU6050: ");
+    if(MPU6050_Init() == 0)
+    {
+        USART1_SendString("OK\r\n");
+    }
+    else
+    {
+        USART1_SendString("FAILED!\r\n");
+        while(1)
+        {
+            USART1_SendString("MPU6050 Error!\r\n");
+            Delay_ms(1000);
+        }
+    }
+    
+    Delay_ms(10);
+    
+    // 3.2 启用Bypass模式
+    USART1_SendString("  Bypass Mode: ");
+    if(MPU6050_EnableBypass() == 0)
+    {
+        USART1_SendString("OK\r\n");
+    }
+    else
+    {
+        USART1_SendString("FAILED!\r\n");
+    }
+    
+    Delay_ms(10);
+    
+    // 3.3 初始化HMC5883L
+    USART1_SendString("  HMC5883L: ");
+    if(HMC5883L_Init() == 0)
+    {
+        USART1_SendString("OK\r\n");
+    }
+    else
+    {
+        USART1_SendString("FAILED!\r\n");
+    }
+    
+    Delay_ms(10);
+    
+    // 3.4 初始化MS5611
+    USART1_SendString("  MS5611: ");
+    if(MS5611_Init() == 0)
+    {
+        USART1_SendString("OK\r\n");
+    }
+    else
+    {
+        USART1_SendString("FAILED!\r\n");
+    }
+    
+    USART1_SendString("GY-86 Initialization Complete!\r\n");
+    USART1_SendString("==============================\r\n");
+    
+    // 测试读取传感器数据
+    int16_t test_accel[3], test_gyro[3], test_mag[3];
+    int32_t temp, press;
+    
+    // 测试读取MPU6050
+    USART1_SendString("Testing MPU6050...\r\n");
+    if(MPU6050_ReadAccelGyro(test_accel, test_gyro) == 0)
+    {
+        USART1_SendString("  Accel: ");
+        USART1_SendNumber(test_accel[0]);
+        USART1_SendString(" ");
+        USART1_SendNumber(test_accel[1]);
+        USART1_SendString(" ");
+        USART1_SendNumber(test_accel[2]);
+        USART1_SendString("\r\n");
+             
+        USART1_SendString("  Gyro: ");
+        USART1_SendNumber(test_gyro[0]);
+        USART1_SendString(" ");
+        USART1_SendNumber(test_gyro[1]);
+        USART1_SendString(" ");
+        USART1_SendNumber(test_gyro[2]);
+        USART1_SendString("\r\n");
+    }
+    else
+    {
+        USART1_SendString("  MPU6050 Read Failed!\r\n");
+    }
+    
+    Delay_ms(100);
+    
+    // 测试读取HMC5883L
+    USART1_SendString("Testing HMC5883L...\r\n");
+    if(HMC5883L_ReadMag(test_mag) == 0)
+    {
+        USART1_SendString("  Mag: ");
+        USART1_SendNumber(test_mag[0]);
+        USART1_SendString(" ");
+        USART1_SendNumber(test_mag[1]);
+        USART1_SendString(" ");
+        USART1_SendNumber(test_mag[2]);
+        USART1_SendString("\r\n");
+    }
+    else
+    {
+        USART1_SendString("  HMC5883L Read Failed!\r\n");
+    }
+    
+    Delay_ms(100);
+    
+    // 测试读取MS5611
+    USART1_SendString("Testing MS5611...\r\n");
+    if(MS5611_ReadData(&temp, &press) == 0)
+    {
+        USART1_SendString("  Temp: ");
+        USART1_SendNumber(temp/100);
+        USART1_SendString("C  Press: ");
+        USART1_SendNumber(press/100);
+        USART1_SendString("hPa\r\n");
+    }
+    else
+    {
+        USART1_SendString("  MS5611 Read Failed!\r\n");
+    }
+    
+    USART1_SendString("=== Start Reading Sensor Data ===\r\n");
+		
+		Motor_SetPulse(1000);  // 1ms脉冲 - 最低油门/停止
+    Delay_ms(3000);        // 延迟确保电调识别
+    
+    // 主循环
+    uint32_t counter = 0;
+    while (1)
+    {
+        counter++;
+        
+        // 每10次发送一次标题
+        if(counter % 10 == 1)
+        {
+            USART1_SendString("Cnt AccX AccY AccZ GryX GryY GryZ MagX MagY MagZ Temp(C) Press(hPa)\r\n");
+        }
+        
+        if(GY86_ReadAll(&sensor_data) == 0)
+        {
+            // 发送计数
+            USART1_SendNumber(counter % 100);
+            USART1_SendString(" ");
+            
+            // 加速度计
+            USART1_SendNumber(sensor_data.accel_x);
+            USART1_SendString(" ");
+            USART1_SendNumber(sensor_data.accel_y);
+            USART1_SendString(" ");
+            USART1_SendNumber(sensor_data.accel_z);
+            USART1_SendString(" ");
+            
+            // 陀螺仪
+            USART1_SendNumber(sensor_data.gyro_x);
+            USART1_SendString(" ");
+            USART1_SendNumber(sensor_data.gyro_y);
+            USART1_SendString(" ");
+            USART1_SendNumber(sensor_data.gyro_z);
+            USART1_SendString(" ");
+            
+            // 磁力计
+            USART1_SendNumber(sensor_data.mag_x);
+            USART1_SendString(" ");
+            USART1_SendNumber(sensor_data.mag_y);
+            USART1_SendString(" ");
+            USART1_SendNumber(sensor_data.mag_z);
+            USART1_SendString(" ");
+            
+            // 温度和气压
+            USART1_SendNumber(sensor_data.temperature / 100);
+            USART1_SendString(" ");
+            USART1_SendNumber(sensor_data.pressure / 100);
+            USART1_SendString("\r\n");
+        }
+        else
+        {
+            USART1_SendString("Read Error\r\n");
+        }
+        
+        Delay_ms(500);  // 2Hz更新频率
+    
+				if(PPM_IsFrameReady())  // 检查是否有新数据
+				{
+								// 使用函数安全获取通道值
+            uint16_t throttle_value = PPM_GetChannel(7);  // 通道8
+            
+            // 安全范围限制
+            if(throttle_value < 1000) throttle_value = 1000;
+            if(throttle_value > 2000) throttle_value = 2000;
+            
+            // 设置电机PWM
+            Motor_SetPulse(throttle_value);
+        }
+        
+        Delay_ms(100);
+			}
+}
